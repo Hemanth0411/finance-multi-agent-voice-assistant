@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # Base service for Python applications (FastAPI agents + orchestrator)

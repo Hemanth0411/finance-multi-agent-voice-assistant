@@ -26,17 +26,7 @@ The system follows a microservice architecture orchestrated via FastAPI:
 
 **Architecture Diagram:**
 
-**[PLACEHOLDER: INSERT ARCHITECTURE DIAGRAM IMAGE HERE]**
-
-*(A visual diagram should illustrate the flow:
-Streamlit UI <--> Orchestrator
-Orchestrator <--> API Agent
-Orchestrator <--> Retriever Agent
-Orchestrator <--> Analysis Agent
-Orchestrator <--> Language Agent
-Streamlit UI <--> Voice Agent (STT/TTS)
-Orchestrator --> Language Agent --> Orchestrator --> Streamlit UI --> Voice Agent (TTS)
-)*
+[View on Eraser![](https://app.eraser.io/workspace/wmOtjFBSzgkJTGbMihF8/preview?elements=IBZoSlBhubLQhfLWyGaEWQ&type=embed)](https://app.eraser.io/workspace/wmOtjFBSzgkJTGbMihF8?elements=IBZoSlBhubLQhfLWyGaEWQ)
 
 *   User interacts (voice/text) with Streamlit UI.
 *   Streamlit sends audio to Voice Agent (STT) or text directly to Orchestrator.
@@ -133,45 +123,150 @@ Access the frontend at `http://localhost:8501`. Agent API docs are available at 
 
 ## Deployment
 
-Detailed deployment instructions will vary based on the chosen platform. Below are general guidelines and options:
+This section outlines the recommended approach for deploying the Finance Assistant:
+*   **Backend FastAPI Agents:** Hosted on a Linux server (e.g., DigitalOcean Droplet) using Docker Compose.
+*   **Frontend Streamlit App:** Hosted on Streamlit Community Cloud.
 
-**Option 1: Streamlit Community Cloud (Frontend Only)**
-*   **Suitable for:** Deploying the Streamlit UI quickly for demos.
-*   **Requires:** Agents running separately (e.g., locally via Docker, or on another cloud platform).
-*   **Steps:**
-    1.  Ensure your `streamlit_app/app.py` correctly points to the running agent URLs (using environment variables like `ORCHESTRATOR_URL`, `VOICE_AGENT_URL`).
-    2.  Push your code (including `requirements.txt`) to a GitHub repository.
-    3.  Connect your GitHub repo to [Streamlit Community Cloud](https://streamlit.io/cloud).
-    4.  Configure required secrets (e.g., agent URLs) in the Streamlit Cloud settings.
+### Part 1: Deploying Backend Services to a Linux Server (e.g., DigitalOcean Droplet)
 
-**Option 2: Docker Compose on a Single VM/Server**
-*   **Suitable for:** Simple, self-contained deployments.
-*   **Requires:** A server (e.g., AWS EC2, DigitalOcean Droplet) with Docker and Docker Compose installed.
-*   **Steps:**
-    1.  Clone the repository onto the server.
-    2.  Create the `.env` file with necessary API keys (`GOOGLE_API_KEY`).
-    3.  Run `docker-compose up --build -d`.
-    4.  Ensure the server's firewall allows traffic on the required ports (e.g., 8501 for Streamlit).
-    5.  Access via `http://<server_ip>:8501`.
+**1.1. Prepare the Server:**
 
-**Option 3: Container Orchestration Platform (Kubernetes, AWS ECS, Google Cloud Run)**
-*   **Suitable for:** Scalable, resilient deployments.
-*   **Requires:** Platform-specific configuration (e.g., Kubernetes YAML files, ECS Task Definitions, Cloud Run service definitions).
-*   **Steps (General):**
-    1.  Build Docker images for each service (or use the multi-stage `Dockerfile` if adapted) and push them to a container registry (Docker Hub, ECR, GCR).
-    2.  Define deployment configurations for each service, specifying:
-        *   Container image URI.
-        *   Required environment variables (including `GOOGLE_API_KEY` and inter-agent URLs).
-        *   Networking rules (allowing agents to communicate).
-        *   Resource requests/limits.
-        *   Potentially persistent volumes for FAISS index/cache if needed.
-    3.  Deploy the configurations to your chosen platform.
-    4.  Set up load balancers or ingress controllers to expose the Streamlit UI and potentially agent endpoints if needed externally.
+*   **Connect via SSH:**
+    ```bash
+    ssh your_username@your_server_ip_address
+    ```
+*   **Update System:**
+    ```bash
+    sudo apt update && sudo apt upgrade -y
+    ```
+*   **Install Docker:**
+    Follow the official Docker installation guide for your distribution. For Debian/Ubuntu:
+    ```bash
+    sudo apt install apt-transport-https ca-certificates curl software-properties-common -y
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    sudo apt update
+    sudo apt install docker-ce -y
+    sudo systemctl status docker
+    sudo usermod -aG docker ${USER} # Log out and back in for this to take effect
+    ```
+*   **Install Docker Compose:**
+    Check the [Docker Compose releases page](https://github.com/docker/compose/releases) for the latest version.
+    ```bash
+    # Example for v2.27.0 (replace if newer exists)
+    LATEST_COMPOSE_VERSION="v2.27.0"
+    sudo curl -L "https://github.com/docker/compose/releases/download/${LATEST_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    docker-compose --version
+    ```
+*   **Configure Firewall (e.g., UFW on Ubuntu):**
+    Allow SSH and the ports for the Orchestrator and Voice Agent.
+    ```bash
+    sudo ufw allow OpenSSH
+    sudo ufw allow 8000/tcp # Orchestrator
+    sudo ufw allow 8005/tcp # Voice Agent
+    sudo ufw enable
+    sudo ufw status
+    ```
+    (Adjust for your specific firewall or cloud provider's firewall settings).
 
-**[PLACEHOLDER: ADD DETAILED STEPS FOR A SPECIFIC PLATFORM, e.g., Streamlit Cloud + Agents on EC2/Cloud Run]**
+**1.2. Deploy Backend Code:**
 
-*   **Environment Variables:** Crucial step. Ensure `GOOGLE_API_KEY` and correct agent URLs are securely set in the chosen deployment environment.
-*   **Persistent Storage:** The default FAISS index (`vector_store/faiss_index.bin`) is built/loaded at runtime. For production, you might want to pre-build it and load it from a persistent volume mounted into the Retriever Agent container.
+*   **Install Git (if needed):**
+    ```bash
+    sudo apt install git -y
+    ```
+*   **Clone Repository:**
+    ```bash
+    git clone <your-github-repository-url>
+    cd finance-assistant
+    ```
+*   **Create `.env` file for Backend:**
+    In the `finance-assistant` directory, create `.env`:
+    ```bash
+    nano .env
+    ```
+    Add the following, replacing placeholders:
+    ```dotenv
+    # finance-assistant/.env (on your server)
+
+    GOOGLE_API_KEY=your_actual_google_api_key_here
+
+    # URLs for inter-agent communication within the Docker network
+    API_AGENT_URL=http://api_agent:8001
+    RETRIEVER_AGENT_URL=http://retriever_agent:8002
+    ANALYSIS_AGENT_URL=http://analysis_agent:8003
+    LANGUAGE_AGENT_URL=http://language_agent:8004
+    VOICE_AGENT_URL=http://voice_agent:8005
+    ORCHESTRATOR_URL=http://orchestrator:8000
+    ```
+*   **Verify `Dockerfile` for Backend:**
+    Ensure your `finance-assistant/Dockerfile` is configured for the backend:
+    *   Uses a suitable Python version (e.g., `FROM python:3.11-slim`).
+    *   Installs `build-essential` and `ffmpeg` system packages:
+        ```dockerfile
+        RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
+        RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+        ```
+    *   Uses a backend-specific requirements file (e.g., `requirements-backend.txt`) that excludes Streamlit and other frontend-only dependencies:
+        ```dockerfile
+        COPY requirements-backend.txt .
+        RUN pip install --no-cache-dir -r requirements-backend.txt
+        ```
+        (You should create `requirements-backend.txt` by copying `requirements.txt` and removing frontend libraries like `streamlit`, `streamlit-audiorecorder`).
+
+**1.3. Build and Run Backend Services:**
+
+*   Navigate to the `finance-assistant` directory on your server.
+*   Build and start the containers:
+    ```bash
+    docker-compose up --build -d
+    ```
+*   Monitor logs (optional):
+    ```bash
+    docker-compose logs -f
+    # Or for specific services:
+    # docker-compose logs -f orchestrator
+    # docker-compose logs -f voice_agent
+    ```
+*   Verify containers are running:
+    ```bash
+    docker-compose ps
+    ```
+*   **Test public backend endpoints from your local machine:**
+    *   Orchestrator docs: `http://<your_server_ip_address>:8000/docs`
+    *   Voice Agent docs: `http://<your_server_ip_address>:8005/docs`
+    Ensure these are accessible.
+
+### Part 2: Deploying Frontend to Streamlit Community Cloud
+
+**2.1. Prepare Your GitHub Repository:**
+
+*   **`requirements.txt`:** Ensure the main `requirements.txt` file in the root of your repository contains all dependencies needed for the Streamlit app itself, including `streamlit`, `requests`, `audiorecorder`, and `python-dotenv`.
+*   **`packages.txt`:** Create a `packages.txt` file in the root of your repository. This tells Streamlit Cloud to install system-level dependencies. For this project, it needs:
+    ```txt
+    # packages.txt
+    portaudio19-dev
+    ffmpeg
+    ```
+*   Commit and push `requirements.txt` and `packages.txt` to your GitHub repository.
+
+**2.2. Deploy on Streamlit Community Cloud:**
+
+*   Go to [share.streamlit.io](https://share.streamlit.io/) and log in with GitHub.
+*   Click "New app".
+*   **Repository:** Select your GitHub repository.
+*   **Branch:** Choose your main branch (e.g., `main`).
+*   **Main file path:** Set this to `streamlit_app/app.py`.
+*   **Python version:** Select a Python version (e.g., 3.11, matching your backend if possible).
+*   **Advanced settings... -> Secrets:**
+    Configure the following secrets, replacing `<your_server_ip_address>` with the public IP of your server where the backend is running:
+    *   `ORCHESTRATOR_URL`: `http://<your_server_ip_address>:8000`
+    *   `VOICE_AGENT_URL`: `http://<your_server_ip_address>:8005`
+*   Click "Deploy!".
+*   Monitor the deployment logs on Streamlit Cloud. Once deployed, test the application using the provided Streamlit Cloud URL.
+
+This provides a comprehensive deployment strategy. Remember to replace placeholders like `<your-github-repository-url>` and `<your_server_ip_address>`.
 
 ## Framework/Toolkit Comparisons
 
@@ -183,18 +278,34 @@ Detailed deployment instructions will vary based on the chosen platform. Below a
 
 ## Performance Benchmarks
 
-*(Placeholder: Add results here after testing)*
+The following benchmarks were conducted on [Date - e.g., May 13, 2024] under the specified conditions. These are initial estimates based on available logs and can vary based on query complexity, network conditions, and underlying LLM performance.
 
-*   **End-to-End Latency:** Measure time from user input (voice/text) to final response (voice/text).
-    *   Target: < 5-10 seconds for typical queries.
-*   **RAG Retrieval Speed:** Measure time taken by the Retriever Agent.
-*   **STT/TTS Speed:** Measure transcription and synthesis time.
-*   **LLM Response Time:** Measure time taken by the Language Agent.
-*   **Resource Usage:** Monitor CPU/Memory usage of different agent containers under load.
+**Testing Environment:**
+*   **Backend:** Deployed via Docker Compose on a local Windows machine (for these specific logs) / Target: DigitalOcean Droplet.
+*   **Frontend:** Streamlit Community Cloud / Local Streamlit instance.
+*   **LLM Model:** `gemini-1.5-flash-latest` (as of test date).
+*   **Test Queries:**
+    *   *Simple Query (Text Example):* "What's the current price of GOOGL?" (or AAPL)
+    *   *Complex Query (Voice Example):* "What's our risk exposure in Asia tech stocks today, and highlight any earnings surprises for major tech companies?" (as per original assignment)
+
+**Latency Results (Representative values from logs):**
+
+| Metric                        | Simple Query (Text) | Complex Query (Voice) | Notes                                                                 |
+| :---------------------------- | :------------------: | :--------------------: | :-------------------------------------------------------------------- |
+| **End-to-End Latency**        |        ~4.7s        |        ~10.5s         | Text: Streamlit UI to text response. Voice: Full voice-in/voice-out.    |
+| STT Latency                   |         N/A         |         ~1.3s         | Whisper 'base' model.                                                 |
+| API Agent Latency (per symbol)|        ~1.2s        |         ~1.2s         | `yfinance` calls (range ~0.9s-1.6s observed).                        |
+| Retriever Agent Latency       |        ~0.04s       |         ~0.04s        | FAISS search (range ~20ms-60ms observed).                             |
+| Analysis Agent Latency        |        ~0.0s        |         ~0.0s         | Negligible processing time after fix (was ~0.26s during an error state). |
+| Language Agent (LLM) Latency  |        ~0.8s        |         ~0.9s         | Gemini Flash (range ~0.7s-2.5s observed).                            |
+| TTS Latency                   |         N/A         |         ~3.5s         | Coqui TTS.                                                            |
+| Orchestrator Processing       |        ~0.2s        |         ~0.3s         | Estimated core logic time, excluding agent `await` times.                |
+
+*Note on "End-to-End Latency (Text)": This value (~4.7s) is taken from Streamlit's `E2E_Streamlit_Orchestrator_Response` log, representing the time from query submission in the UI to the orchestrator's full response being available to Streamlit. The sum of individual agent latencies above (~2.04s for a simple text query with one symbol) suggests the remaining time (~2.66s) is distributed among network calls between services, Orchestrator's internal `httpx` I/O and data handling, and Streamlit's processing.*
 
 ## Demo
 
-*(Link to Demo Video/GIF to be added)*
+
 
 ## AI Tool Usage
 
