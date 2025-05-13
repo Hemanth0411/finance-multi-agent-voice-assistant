@@ -121,6 +121,7 @@ with col2:
 
 # --- Clear Previous Output if New Query --- 
 if new_query_initiated:
+    print("New query initiated, clearing previous state.") # Debug print
     st.session_state.narrative = None
     st.session_state.audio_bytes = None
     st.session_state.raw_data = None
