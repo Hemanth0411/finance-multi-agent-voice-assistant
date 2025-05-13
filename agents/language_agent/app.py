@@ -1,10 +1,17 @@
+import sys
+import os
+
+# Add project root to sys.path for local running
+PROJECT_ROOT_LANG = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT_LANG not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT_LANG)
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
 # from langchain_openai import ChatOpenAI # Example if using OpenAI
 # from langchain_core.prompts import ChatPromptTemplate
 # from langchain_core.output_parsers import StrOutputParser
-import os
 from dotenv import load_dotenv
 # --- LLM Imports ---
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -13,6 +20,10 @@ from langchain_core.output_parsers import StrOutputParser
 # --- Import centralized prompt ---
 from orchestrator.prompts import LANGUAGE_AGENT_PROMPT
 # --- End LLM Imports ---
+import time
+import logging
+# Ensure data_utils is in python path or adjust import
+from data_ingestion.data_utils import log_duration 
 
 load_dotenv()
 
@@ -143,6 +154,8 @@ async def synthesize_narrative(request: SynthesisRequest):
     if not chain:
         raise HTTPException(status_code=500, detail="LLM chain not loaded. Check API key and logs.")
 
+    lang_agent_total_req_start_time = time.time()
+
     try:
         # Format inputs for the LLM chain
         context_str = format_context(request.retrieved_context)
@@ -151,12 +164,14 @@ async def synthesize_narrative(request: SynthesisRequest):
 
         # Invoke the LLM chain asynchronously
         print("Invoking LLM chain...")
+        llm_call_start_time = time.time()
         response = await chain.ainvoke({
             "query": request.query,
             "context": context_str,
             "analysis": analysis_str,
             "market_highlights": market_str
         })
+        log_duration("Language_Agent_LLM_Call", llm_call_start_time)
         print("LLM response received.")
 
         # *** Placeholder Response Generation ***
@@ -169,13 +184,18 @@ async def synthesize_narrative(request: SynthesisRequest):
         if not response:
              # Handle cases where the LLM might return an empty response
              print("Warning: LLM returned an empty response.")
+             # Log duration before raising error
+             log_duration("Language_Agent_Total_Request_EmptyLLMResponse", lang_agent_total_req_start_time)
              raise ValueError("LLM failed to generate a response.")
 
+        log_duration("Language_Agent_Total_Request", lang_agent_total_req_start_time)
         return SynthesisResponse(narrative=response)
     except Exception as e:
         print(f"Error during synthesis: {e}")
         import traceback
         traceback.print_exc()
+        # Log duration before raising exception
+        log_duration("Language_Agent_Total_Request_Error", lang_agent_total_req_start_time)
         # Check for specific API errors if using a service like OpenAI
         # if isinstance(e, openai.APIError): ...
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {e}")

@@ -1,10 +1,29 @@
+import sys
+import os
+
+# Add project root to sys.path for local running
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
-import os
 from dotenv import load_dotenv
+import time
+import logging
+from data_ingestion.data_utils import log_duration
+
+# Add project root to sys.path
+PROJECT_ROOT_RETRIEVER = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT_RETRIEVER not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT_RETRIEVER)
+
+def log_duration(operation_name: str, start_time: float):
+    duration_ms = (time.time() - start_time) * 1000
+    logging.info(f"PERF_METRIC: {operation_name} took {duration_ms:.2f} ms")
 
 load_dotenv()
 
@@ -131,8 +150,13 @@ async def retrieve_documents(request: QueryRequest):
          print("Warning: Attempting to search an empty FAISS index.")
          return RetrievalResponse(results=[])
 
+    retriever_total_req_start_time = time.time()
+
     try:
+        query_embedding_start_time = time.time()
         query_embedding = model.encode([request.query])[0]
+        log_duration("Retriever_Agent_Query_Embedding", query_embedding_start_time)
+
         # Normalize query embedding
         query_embedding_normalized = np.float32(query_embedding)
         faiss.normalize_L2(query_embedding_normalized.reshape(1, -1))
@@ -140,12 +164,15 @@ async def retrieve_documents(request: QueryRequest):
         # Ensure k is not larger than the number of documents in the index
         k = min(request.top_k, index.ntotal)
         if k <= 0:
+             log_duration("Retriever_Agent_Total_Request_EmptyK", retriever_total_req_start_time)
              return RetrievalResponse(results=[])
 
         # Perform FAISS search
+        faiss_search_start_time = time.time()
         # D = distances (inner product scores), I = indices
         print(f"Searching index for top {k} results...")
         distances, indices = index.search(query_embedding_normalized.reshape(1, -1), k)
+        log_duration("Retriever_Agent_FAISS_Search", faiss_search_start_time)
 
         results = []
         if indices.size > 0:
@@ -161,12 +188,15 @@ async def retrieve_documents(request: QueryRequest):
                  })
 
         print(f"Retrieved {len(results)} results.")
+        log_duration("Retriever_Agent_Total_Request", retriever_total_req_start_time)
         return RetrievalResponse(results=results)
     except Exception as e:
         print(f"Error during retrieval: {e}")
         # Log the exception traceback for debugging
         import traceback
         traceback.print_exc()
+        # Log duration before raising exception
+        log_duration("Retriever_Agent_Total_Request_Error", retriever_total_req_start_time)
         raise HTTPException(status_code=500, detail=f"Retrieval failed: {e}")
 
 if __name__ == "__main__":

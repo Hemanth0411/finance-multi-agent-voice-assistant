@@ -1,12 +1,22 @@
+import sys
+import os
+
+# Add project root to sys.path to allow finding data_ingestion
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import whisper
 import tempfile
-import os
 import shutil
 from TTS.api import TTS
 from dotenv import load_dotenv
+import time
+import logging
+from data_ingestion.data_utils import log_duration
 
 load_dotenv()
 
@@ -85,6 +95,8 @@ async def speech_to_text(audio_file: UploadFile = File(...)):
     """
     if not stt_model:
         raise HTTPException(status_code=500, detail="STT model not loaded.")
+    
+    stt_total_req_start_time = time.time() # Start total STT request timer
 
     # Use a temporary file to store the uploaded audio
     try:
@@ -102,9 +114,12 @@ async def speech_to_text(audio_file: UploadFile = File(...)):
 
     try:
         # Perform transcription
+        stt_transcribe_start_time = time.time()
         result = stt_model.transcribe(temp_audio_path)
+        log_duration("STT_Whisper_Transcribe", stt_transcribe_start_time)
         transcribed_text = result["text"]
         print(f"Transcription result: {transcribed_text}")
+        log_duration("STT_Total_Request", stt_total_req_start_time) # Log total STT request time
         return STTResponse(text=transcribed_text)
 
     except Exception as e:
@@ -137,6 +152,8 @@ async def text_to_speech(request: TTSRequest):
     if not request.text or not request.text.strip():
          raise HTTPException(status_code=400, detail="Input text cannot be empty.")
 
+    tts_total_req_start_time = time.time() # Start total TTS request timer
+
     try:
         # Create a temporary file path for the output audio
         # Using NamedTemporaryFile ensures cleanup even if errors occur elsewhere
@@ -148,13 +165,15 @@ async def text_to_speech(request: TTSRequest):
         print(f"Outputting to temporary file: {output_wav_path}")
 
         # Perform TTS synthesis
-        # Ensure the file path exists before calling tts_to_file
+        tts_generate_start_time = time.time()
         tts_model.tts_to_file(text=request.text, file_path=output_wav_path)
+        log_duration("TTS_Coqui_Generate", tts_generate_start_time)
 
         if not os.path.exists(output_wav_path) or os.path.getsize(output_wav_path) == 0:
              raise RuntimeError("TTS synthesis failed to produce an output file.")
 
         print(f"TTS synthesis complete. Audio saved at: {output_wav_path}")
+        log_duration("TTS_Total_Request", tts_total_req_start_time) # Log total TTS request time
 
         # Return the generated WAV file
         # FileResponse will handle streaming the file and cleanup after sending

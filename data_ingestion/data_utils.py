@@ -5,6 +5,11 @@ import hashlib
 import os
 from pathlib import Path
 import logging
+import time
+
+def log_duration(operation_name: str, start_time: float):
+    duration_ms = (time.time() - start_time) * 1000
+    print(f"PERF_METRIC: {operation_name} took {duration_ms:.2f} ms")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

@@ -1,5 +1,7 @@
 import yfinance as yf
 import pandas as pd
+import time
+from .data_utils import log_duration # Assuming data_utils is in the same directory or accessible
 
 def get_stock_data(symbol: str) -> dict | None:
     """Fetches stock data for a given symbol using yfinance.
@@ -11,14 +13,22 @@ def get_stock_data(symbol: str) -> dict | None:
         A dictionary containing 'price' (1-day history DataFrame) and 'info',
         or None if the symbol is invalid or data fetch fails.
     """
+    yf_call_start_time = time.time()
     try:
         stock = yf.Ticker(symbol)
         # Check if the ticker is valid by trying to access info
-        if not stock.info:
+        # Accessing stock.info can be an I/O operation
+        info_data = stock.info
+        log_duration(f"API_YFinance_Info_{symbol}", yf_call_start_time) # Log after .info call
+        
+        if not info_data:
             print(f"Warning: No info found for symbol {symbol}. It might be invalid.")
             return None
 
+        hist_fetch_start_time = time.time()
         hist = stock.history(period="1d")
+        log_duration(f"API_YFinance_History_{symbol}", hist_fetch_start_time)
+
         if hist.empty:
              print(f"Warning: No history found for symbol {symbol} for period '1d'.")
              # Still return info if available

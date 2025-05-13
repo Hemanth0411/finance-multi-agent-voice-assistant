@@ -1,6 +1,16 @@
+import sys # Moved to top
+import os # Moved to top
+
+# Add project root to sys.path to allow finding data_ingestion
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
+from data_ingestion.data_utils import log_duration
+import time # Add time import
 
 app = FastAPI(
     title="Analysis Agent Service",
@@ -91,25 +101,28 @@ async def analyze_portfolio(request: PortfolioAnalysisRequest):
     Raises:
         HTTPException: 500 if analysis fails.
     """
+    analysis_start_time = time.time() # Start timer
     try:
-        # Validate market_data structure before passing to calculation
-        valid_market_data = {}
+        # The request.market_data should already contain StockInfo objects if the Orchestrator is correct.
+        # We can directly use it if the Pydantic validation for PortfolioAnalysisRequest passed.
+        
+        # Filter for valid StockInfo objects, though Pydantic should ensure this for PortfolioAnalysisRequest
+        # This is more of a sanity check or if we were to change how data is passed.
+        valid_market_data_for_calc = {}
         if request.market_data:
-            for symbol, data_dict in request.market_data.items():
-                 try:
-                      # Attempt to parse into StockInfo to ensure structure
-                      stock_info_obj = StockInfo(symbol=symbol, info=data_dict.get('info', {})) # Get info dict
-                      valid_market_data[symbol] = stock_info_obj
-                 except Exception as pydantic_error:
-                      print(f"Warning: Skipping symbol {symbol} due to invalid data format: {pydantic_error}")
-
+            for symbol, stock_info_obj in request.market_data.items():
+                if isinstance(stock_info_obj, StockInfo) and stock_info_obj.info is not None:
+                    valid_market_data_for_calc[symbol] = stock_info_obj
+                else:
+                    print(f"Warning: Skipping symbol {symbol} in Analysis Agent because it was not a valid StockInfo object or info was None.")
 
         # Calculate Asia tech exposure using the improved logic
-        asia_exposure_percent = calculate_exposure(valid_market_data, request.total_aum, region="Asia")
+        asia_exposure_percent = calculate_exposure(valid_market_data_for_calc, request.total_aum, region="Asia")
 
         # Placeholder for earnings analysis - this would likely involve the retrieved context
         # earnings_summary = analyze_earnings(retrieved_context)
 
+        log_duration("Analysis_Agent_Total_Request", analysis_start_time) # Log duration before returning
         return AnalysisResponse(
             risk_metrics={
                 "asia_tech_exposure_percent": asia_exposure_percent
