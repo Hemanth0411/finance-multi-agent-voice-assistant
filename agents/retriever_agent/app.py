@@ -5,8 +5,20 @@ import numpy as np
 import faiss
 import os
 from dotenv import load_dotenv
+<<<<<<< Updated upstream
+=======
+import time
+import logging
+from data_ingestion.data_utils import log_duration
+
+# Add project root to sys.path
+PROJECT_ROOT_RETRIEVER = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT_RETRIEVER not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT_RETRIEVER)
+>>>>>>> Stashed changes
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 DIMENSION = 384 # Dimension for all-MiniLM-L6-v2
@@ -38,12 +50,12 @@ app = FastAPI(
 @app.on_event("startup")
 async def load_model_and_index():
     global model, index, faiss_ids
-    print(f"Loading SentenceTransformer model: {EMBEDDING_MODEL_NAME}...")
+    logger.info(f"Loading SentenceTransformer model: {EMBEDDING_MODEL_NAME}...")
     try:
         model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-        print("SentenceTransformer model loaded.")
+        logger.info("SentenceTransformer model loaded.")
     except Exception as e:
-        print(f"Error loading SentenceTransformer model: {e}")
+        logger.error(f"Error loading SentenceTransformer model: {e}", exc_info=True)
         raise RuntimeError("Failed to load SentenceTransformer model") from e
 
     # --- Build FAISS Index ---
@@ -58,17 +70,17 @@ async def load_model_and_index():
     #         index = None # Ensure index is rebuilt
 
     if not index:
-        print("Building FAISS index from document store...")
+        logger.info("Building FAISS index from document store...")
         try:
             doc_texts = list(document_store.values())
             faiss_ids = list(document_store.keys()) # Store original keys
 
             if not doc_texts:
-                 print("Warning: Document store is empty. FAISS index will be empty.")
+                 logger.warning("Document store is empty. FAISS index will be empty.")
                  index = faiss.IndexFlatIP(DIMENSION) # Create empty index
                  return
 
-            print(f"Embedding {len(doc_texts)} documents...")
+            logger.info(f"Embedding {len(doc_texts)} documents...")
             embeddings = model.encode(doc_texts, convert_to_numpy=True)
 
             # Ensure embeddings are float32
@@ -82,7 +94,7 @@ async def load_model_and_index():
             # Add embeddings to the index
             index.add(embeddings)
 
-            print(f"FAISS index built successfully with {index.ntotal} vectors.")
+            logger.info(f"FAISS index built successfully with {index.ntotal} vectors.")
 
             # Optional: Save index
             # try:
@@ -93,10 +105,7 @@ async def load_model_and_index():
             #     print(f"Error saving FAISS index: {e}")
 
         except Exception as e:
-            print(f"Error building FAISS index: {e}")
-            import traceback
-            traceback.print_exc()
-            # Decide how to handle index build failure - maybe raise error?
+            logger.error(f"Error building FAISS index: {e}", exc_info=True)
             index = None # Ensure index is None if build fails
 
 # app = FastAPI( # Removed from here
@@ -128,7 +137,7 @@ async def retrieve_documents(request: QueryRequest):
     if not model or not index:
         raise HTTPException(status_code=500, detail="Model or FAISS index not loaded.")
     if index.ntotal == 0:
-         print("Warning: Attempting to search an empty FAISS index.")
+         logger.warning("Attempting to search an empty FAISS index.")
          return RetrievalResponse(results=[])
 
     try:
@@ -144,7 +153,7 @@ async def retrieve_documents(request: QueryRequest):
 
         # Perform FAISS search
         # D = distances (inner product scores), I = indices
-        print(f"Searching index for top {k} results...")
+        logger.info(f"Searching FAISS index for top {k} results...")
         distances, indices = index.search(query_embedding_normalized.reshape(1, -1), k)
 
         results = []
@@ -160,6 +169,7 @@ async def retrieve_documents(request: QueryRequest):
                      "score": float(score) # Inner Product score (higher is better)
                  })
 
+<<<<<<< Updated upstream
         print(f"Retrieved {len(results)} results.")
         return RetrievalResponse(results=results)
     except Exception as e:
@@ -167,16 +177,37 @@ async def retrieve_documents(request: QueryRequest):
         # Log the exception traceback for debugging
         import traceback
         traceback.print_exc()
+=======
+        logger.info(f"Retrieved {len(results)} results from FAISS index.")
+        log_duration("Retriever_Agent_Total_Request", retriever_total_req_start_time)
+        return RetrievalResponse(results=results)
+    except Exception as e:
+        logger.error(f"Error during retrieval: {e}", exc_info=True)
+        log_duration("Retriever_Agent_Total_Request_Error", retriever_total_req_start_time)
+>>>>>>> Stashed changes
         raise HTTPException(status_code=500, detail=f"Retrieval failed: {e}")
 
-if __name__ == "__main__":
-    import uvicorn
-    # Run using:
-    # cd finance-assistant
-    # uvicorn agents.retriever_agent.app:app --reload --port 8002
-    print("Running Retriever Agent Service. Access docs at http://localhost:8002/docs")
-    # Ensure model is loaded before starting server
-    if 'model' not in globals():
-        print("SentenceTransformer model not loaded. Exiting.")
-    else:
-        uvicorn.run(app, host="0.0.0.0", port=8002) 
+# The following __main__ block is for local testing and should be removed for deployment.
+# # Removed if __name__ == "__main__" block for deployment
+# # if __name__ == "__main__":
+# #     import uvicorn
+# #     # Run using:
+# #     # cd finance-assistant
+# #     # uvicorn agents.retriever_agent.app:app --reload --port 8002
+# #     # logger.info("Running Retriever Agent Service. Access docs at http://localhost:8002/docs")
+# #     # Ensure model is loaded before starting server
+# #     # if 'model' not in globals() or model is None or index is None: # Check index as well
+# #     #     logger.error("SentenceTransformer model or FAISS index not loaded properly. Exiting.")
+
+# This active __main__ block is now being removed:
+# if __name__ == "__main__":
+#     import uvicorn
+#     # Run using:
+#     # cd finance-assistant
+#     # uvicorn agents.retriever_agent.app:app --reload --port 8002
+#     print("Running Retriever Agent Service. Access docs at http://localhost:8002/docs")
+#     # Ensure model is loaded before starting server
+#     if 'model' not in globals():
+#         print("SentenceTransformer model not loaded. Exiting.")
+#     else:
+#         uvicorn.run(app, host="0.0.0.0", port=8002) 
