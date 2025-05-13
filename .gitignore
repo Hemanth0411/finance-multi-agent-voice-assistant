@@ -159,3 +159,6 @@ logs/
 # OS specific
 .DS_Store
 Thumbs.db
+
+/temp_audio
+/temp_cache

@@ -4,6 +4,19 @@ import requests
 import io
 import os
 from dotenv import load_dotenv
+import time # Added for timing
+
+# --- Add project root to sys.path for local running ---
+import sys
+# Get the directory of the current script (streamlit_app/app.py)
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the parent directory (finance-assistant)
+project_root = os.path.abspath(os.path.join(current_script_dir, os.pardir))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root) # Prepend to allow finance-assistant.module imports
+# --- End sys.path modification ---
+
+from data_ingestion.data_utils import log_duration # Added for PERF_METRIC
 
 load_dotenv()
 
@@ -115,13 +128,15 @@ with col2:
     submit_button = st.button("Submit Text Query")
 
     if submit_button and text_input:
-         if text_input != st.session_state.last_query: # Check if it's a new query
+        if text_input != st.session_state.last_query: # Check if it's a new query
             query_text = text_input
             new_query_initiated = True
+        # If it's the same as the last query, but the user clicked submit again
+        # and there's no current narrative, we might want to re-process.
+        # For now, new_query_initiated remains False if query text hasn't changed.
 
 # --- Clear Previous Output if New Query --- 
 if new_query_initiated:
-    print("New query initiated, clearing previous state.") # Debug print
     st.session_state.narrative = None
     st.session_state.audio_bytes = None
     st.session_state.raw_data = None
@@ -131,6 +146,7 @@ if new_query_initiated:
 if query_text: # Only process if query_text was set (implies new_query_initiated was True)
     st.divider()
     st.subheader("Processing Request...")
+    e2e_start_time = time.time() # <<< START E2E
     with st.spinner("Calling agents and generating response..."):
         orchestrator_response = call_orchestrator(query_text)
 
@@ -138,12 +154,17 @@ if query_text: # Only process if query_text was set (implies new_query_initiated
         # Store results in session state
         st.session_state.narrative = orchestrator_response.get("final_narrative", "Error: No narrative generated.")
         st.session_state.raw_data = orchestrator_response
+        log_duration("E2E_Streamlit_Orchestrator_Response", e2e_start_time) # <<< END E2E (Text part)
         
         # Generate audio only if narrative exists
         if st.session_state.narrative and not st.session_state.narrative.startswith("Error:"):
             with st.spinner("Synthesizing audio..."):
+                tts_call_start_time = time.time()
                 audio_response_bytes = call_tts(st.session_state.narrative)
+                log_duration("E2E_Streamlit_TTS_Call", tts_call_start_time)
                 st.session_state.audio_bytes = audio_response_bytes
+                if audio_response_bytes: # Log full cycle only if TTS was successful
+                    log_duration("E2E_Full_Voice_Response_Cycle_End", e2e_start_time) # <<< END E2E (Voice part, if applicable)
         else:
              st.session_state.audio_bytes = None # Ensure no old audio plays if narrative fails
 

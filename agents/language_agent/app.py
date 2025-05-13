@@ -1,10 +1,17 @@
+import sys
+import os
+
+# Add project root to sys.path for local running
+PROJECT_ROOT_LANG = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT_LANG not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT_LANG)
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
 # from langchain_openai import ChatOpenAI # Example if using OpenAI
 # from langchain_core.prompts import ChatPromptTemplate
 # from langchain_core.output_parsers import StrOutputParser
-import os
 from dotenv import load_dotenv
 # --- LLM Imports ---
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -13,8 +20,13 @@ from langchain_core.output_parsers import StrOutputParser
 # --- Import centralized prompt ---
 from orchestrator.prompts import LANGUAGE_AGENT_PROMPT
 # --- End LLM Imports ---
+import time
+import logging
+# Ensure data_utils is in python path or adjust import
+from data_ingestion.data_utils import log_duration 
 
 load_dotenv()
+logger = logging.getLogger(__name__) # Added logger
 
 # Example: Load API key from environment variable (replace with your method)
 # os.environ["OPENAI_API_KEY"] = "your-api-key"
@@ -23,7 +35,7 @@ load_dotenv()
 # Load API key from environment variable
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
-    print("Warning: GOOGLE_API_KEY environment variable not set. LLM calls will fail.")
+    logger.warning("GOOGLE_API_KEY environment variable not set. LLM calls may fail.") # Changed from print
     # Raise an error or handle appropriately if the key is critical for startup
     # raise ValueError("GOOGLE_API_KEY not set.")
 
@@ -43,10 +55,10 @@ app = FastAPI(
 async def load_llm_chain():
     global chain
     if not GOOGLE_API_KEY:
-         print("LLM Chain cannot be loaded because GOOGLE_API_KEY is not set.")
+         logger.error("LLM Chain cannot be loaded: GOOGLE_API_KEY is not set.") # Changed from print
          return
     
-    print("Loading LLM chain...")
+    logger.info("Loading LLM chain...") # Changed from print
     try:
         # Initialize the LLM
         llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL_NAME, google_api_key=GOOGLE_API_KEY)
@@ -63,12 +75,10 @@ async def load_llm_chain():
 
         # Create the LCEL chain
         chain = prompt_template | llm | output_parser
-        print("LLM chain loaded successfully.")
+        logger.info("LLM chain loaded successfully.") # Changed from print
 
     except Exception as e:
-        print(f"Error loading LLM chain: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error loading LLM chain: {e}", exc_info=True) # Changed from print and traceback
         chain = None # Ensure chain is None if loading fails
 
 class SynthesisRequest(BaseModel):
@@ -143,6 +153,8 @@ async def synthesize_narrative(request: SynthesisRequest):
     if not chain:
         raise HTTPException(status_code=500, detail="LLM chain not loaded. Check API key and logs.")
 
+    lang_agent_total_req_start_time = time.time()
+
     try:
         # Format inputs for the LLM chain
         context_str = format_context(request.retrieved_context)
@@ -150,14 +162,16 @@ async def synthesize_narrative(request: SynthesisRequest):
         market_str = format_market_data(request.market_data)
 
         # Invoke the LLM chain asynchronously
-        print("Invoking LLM chain...")
+        logger.info("Invoking LLM chain...") # Changed from print
+        llm_call_start_time = time.time()
         response = await chain.ainvoke({
             "query": request.query,
             "context": context_str,
             "analysis": analysis_str,
             "market_highlights": market_str
         })
-        print("LLM response received.")
+        log_duration("Language_Agent_LLM_Call", llm_call_start_time)
+        logger.info("LLM response received.") # Changed from print
 
         # *** Placeholder Response Generation ***
         # response = f"Synthesized response for query: '{request.query}'\n\n"
@@ -167,23 +181,24 @@ async def synthesize_narrative(request: SynthesisRequest):
         # *** End Placeholder ***
 
         if not response:
-             # Handle cases where the LLM might return an empty response
-             print("Warning: LLM returned an empty response.")
+             logger.warning("LLM returned an empty response.") # Changed from print
+             log_duration("Language_Agent_Total_Request_EmptyLLMResponse", lang_agent_total_req_start_time)
              raise ValueError("LLM failed to generate a response.")
 
+        log_duration("Language_Agent_Total_Request", lang_agent_total_req_start_time)
         return SynthesisResponse(narrative=response)
     except Exception as e:
-        print(f"Error during synthesis: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error during synthesis: {e}", exc_info=True) # Changed from print and traceback
+        log_duration("Language_Agent_Total_Request_Error", lang_agent_total_req_start_time)
         # Check for specific API errors if using a service like OpenAI
         # if isinstance(e, openai.APIError): ...
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {e}")
 
-if __name__ == "__main__":
-    import uvicorn
-    # Requires LangChain, langchain-google-genai
-    # Set GOOGLE_API_KEY environment variable
-    print("Running Language Agent Service. Ensure GOOGLE_API_KEY is set.")
-    print(f"Access docs at http://localhost:8004/docs")
-    uvicorn.run("agents.language_agent.app:app", host="0.0.0.0", port=8004, reload=True) 
+# Removed if __name__ == "__main__" block for deployment
+# if __name__ == "__main__":
+#     import uvicorn
+#     # Requires LangChain, langchain-google-genai
+#     # Set GOOGLE_API_KEY environment variable
+#     # logger.info("Running Language Agent Service. Ensure GOOGLE_API_KEY is set.") # Changed from print
+#     # logger.info(f"Access docs at http://localhost:8004/docs") # Changed from print
+#     uvicorn.run("agents.language_agent.app:app", host="0.0.0.0", port=8004, reload=True) 

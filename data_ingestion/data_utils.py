@@ -5,6 +5,11 @@ import hashlib
 import os
 from pathlib import Path
 import logging
+import time
+
+def log_duration(operation_name: str, start_time: float):
+    duration_ms = (time.time() - start_time) * 1000
+    logger.info(f"PERF_METRIC: {operation_name} took {duration_ms:.2f} ms")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -112,42 +117,43 @@ def load_from_cache(key: str, cache_dir: Path = CACHE_DIR) -> Any | None:
     return None
 
 
-if __name__ == "__main__":
-    # Example usage of cleaning functions
-    raw_text = "  Hello   World!  This is a test with 123, ABC and some $#@ special chars.  "
-    cleaned = clean_text_data(raw_text)
-    logger.info(f"Original: '{raw_text}'")
-    logger.info(f"Cleaned:  '{cleaned}'")
-
-    num1 = clean_financial_number("1,250.75M")
-    logger.info(f"Cleaned '1,250.75M': {num1}")
-    num2 = clean_financial_number("$(2.5B)")
-    logger.info(f"Cleaned '$(2.5B)': {num2}")
-    num3 = clean_financial_number("300K")
-    logger.info(f"Cleaned '300K': {num3}")
-    num4 = clean_financial_number("InvalidData")
-    logger.info(f"Cleaned 'InvalidData': {num4}")
-
-    # Example usage of caching functions
-    data_to_cache = {"name": "John Doe", "value": 42, "items": [1, 2, 3]}
-    params = ("user_data", 123)
-    cache_k = generate_cache_key(*params, filter="active")
-
-    # Save to cache
-    save_to_cache(cache_k, data_to_cache)
-    logger.info(f"Saved data with cache key: {cache_k}")
-
-    # Load from cache
-    loaded_data = load_from_cache(cache_k)
-    if loaded_data:
-        logger.info(f"Loaded data from cache: {loaded_data}")
-        assert loaded_data == data_to_cache
-    else:
-        logger.info("Cache miss or error loading.")
-
-    # Test with a new key (cache miss)
-    missing_data = load_from_cache("non_existent_key")
-    assert missing_data is None
-    logger.info("Tested cache miss for 'non_existent_key'.")
-
-    logger.info("Data utils module loaded and example functions executed.") 
+# Removed if __name__ == "__main__" block for deployment
+# if __name__ == "__main__":
+#     # Example usage of cleaning functions
+#     raw_text = "  Hello   World!  This is a test with 123, ABC and some $#@ special chars.  "
+#     cleaned = clean_text_data(raw_text)
+#     logger.info(f"Original: '{raw_text}'")
+#     logger.info(f"Cleaned:  '{cleaned}'")
+# 
+#     num1 = clean_financial_number("1,250.75M")
+#     logger.info(f"Cleaned '1,250.75M': {num1}")
+#     num2 = clean_financial_number("$(2.5B)")
+#     logger.info(f"Cleaned '$(2.5B)': {num2}")
+#     num3 = clean_financial_number("300K")
+#     logger.info(f"Cleaned '300K': {num3}")
+#     num4 = clean_financial_number("InvalidData")
+#     logger.info(f"Cleaned 'InvalidData': {num4}")
+# 
+#     # Example usage of caching functions
+#     data_to_cache = {"name": "John Doe", "value": 42, "items": [1, 2, 3]}
+#     params = ("user_data", 123)
+#     cache_k = generate_cache_key(*params, filter="active")
+# 
+#     # Save to cache
+#     save_to_cache(cache_k, data_to_cache)
+#     logger.info(f"Saved data with cache key: {cache_k}")
+# 
+#     # Load from cache
+#     loaded_data = load_from_cache(cache_k)
+#     if loaded_data:
+#         logger.info(f"Loaded data from cache: {loaded_data}")
+#         assert loaded_data == data_to_cache
+#     else:
+#         logger.info("Cache miss or error loading.")
+# 
+#     # Test with a new key (cache miss)
+#     missing_data = load_from_cache("non_existent_key")
+#     assert missing_data is None
+#     logger.info("Tested cache miss for 'non_existent_key'.")
+# 
+#     logger.info("Data utils module loaded and example functions executed.") 

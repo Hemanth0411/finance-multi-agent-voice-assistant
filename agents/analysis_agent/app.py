@@ -1,12 +1,25 @@
+import sys # Moved to top
+import os # Moved to top
+import time # Add time import
+import logging # Added
+
+# Add project root to sys.path to allow finding data_ingestion
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
+from data_ingestion.data_utils import log_duration
 
 app = FastAPI(
     title="Analysis Agent Service",
     description="Performs financial analysis like risk exposure calculation.",
     version="0.1.0"
 )
+
+logger = logging.getLogger(__name__) # Added
 
 # Pydantic models for input data structure validation
 class StockInfo(BaseModel):
@@ -58,7 +71,7 @@ def calculate_exposure(market_data: Dict[str, StockInfo], total_aum: float, regi
              if not isinstance(stock_value, (int, float)):
                   stock_value = 0
         else:
-             print(f"Warning: Missing or invalid info for symbol {symbol}")
+             logger.warning(f"Missing or invalid info for symbol {symbol} in calculate_exposure") # Changed from print
              stock_value = 0 # Assign zero value if info is missing
 
         total_value_in_data += stock_value
@@ -91,25 +104,28 @@ async def analyze_portfolio(request: PortfolioAnalysisRequest):
     Raises:
         HTTPException: 500 if analysis fails.
     """
+    analysis_start_time = time.time() # Start timer
     try:
-        # Validate market_data structure before passing to calculation
-        valid_market_data = {}
+        # The request.market_data should already contain StockInfo objects if the Orchestrator is correct.
+        # We can directly use it if the Pydantic validation for PortfolioAnalysisRequest passed.
+        
+        # Filter for valid StockInfo objects, though Pydantic should ensure this for PortfolioAnalysisRequest
+        # This is more of a sanity check or if we were to change how data is passed.
+        valid_market_data_for_calc = {}
         if request.market_data:
-            for symbol, data_dict in request.market_data.items():
-                 try:
-                      # Attempt to parse into StockInfo to ensure structure
-                      stock_info_obj = StockInfo(symbol=symbol, info=data_dict.get('info', {})) # Get info dict
-                      valid_market_data[symbol] = stock_info_obj
-                 except Exception as pydantic_error:
-                      print(f"Warning: Skipping symbol {symbol} due to invalid data format: {pydantic_error}")
-
+            for symbol, stock_info_obj in request.market_data.items():
+                if isinstance(stock_info_obj, StockInfo) and stock_info_obj.info is not None:
+                    valid_market_data_for_calc[symbol] = stock_info_obj
+                else:
+                    logger.warning(f"Skipping symbol {symbol} in Analysis Agent: not a valid StockInfo object or info was None.") # Changed from print
 
         # Calculate Asia tech exposure using the improved logic
-        asia_exposure_percent = calculate_exposure(valid_market_data, request.total_aum, region="Asia")
+        asia_exposure_percent = calculate_exposure(valid_market_data_for_calc, request.total_aum, region="Asia")
 
         # Placeholder for earnings analysis - this would likely involve the retrieved context
         # earnings_summary = analyze_earnings(retrieved_context)
 
+        log_duration("Analysis_Agent_Total_Request", analysis_start_time) # Log duration before returning
         return AnalysisResponse(
             risk_metrics={
                 "asia_tech_exposure_percent": asia_exposure_percent
@@ -118,15 +134,14 @@ async def analyze_portfolio(request: PortfolioAnalysisRequest):
             # earnings_summary=earnings_summary
         )
     except Exception as e:
-        print(f"Error during analysis: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error during analysis: {e}", exc_info=True) # Changed from print and traceback
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
 
-if __name__ == "__main__":
-    import uvicorn
-    # Run using:
-    # cd finance-assistant
-    # uvicorn agents.analysis_agent.app:app --reload --port 8003
-    print("Running Analysis Agent Service. Access docs at http://localhost:8003/docs")
-    uvicorn.run(app, host="0.0.0.0", port=8003) 
+# Removed if __name__ == "__main__" block for deployment
+# if __name__ == "__main__":
+#     import uvicorn
+#     # Run using:
+#     # cd finance-assistant
+#     # uvicorn agents.analysis_agent.app:app --reload --port 8003
+#     # print("Running Analysis Agent Service. Access docs at http://localhost:8003/docs") # Removed with block
+#     uvicorn.run(app, host="0.0.0.0", port=8003) 

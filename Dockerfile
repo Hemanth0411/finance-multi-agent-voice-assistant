@@ -1,6 +1,7 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.11
 
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
 # Install ffmpeg
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
@@ -8,11 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 WORKDIR /app
 
 # Copy the requirements file into the container at /app
-COPY requirements.txt .
+COPY requirements-backend.txt .
 
 # Install any needed packages specified in requirements.txt
 # Using --no-cache-dir to reduce image size
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-backend.txt
 
 # Copy the rest of the application code into the container
 COPY . .

@@ -1,0 +1,27 @@
+        # Core Dependencies for Backend
+        fastapi
+        uvicorn[standard]
+        httpx
+        pydantic
+        python-dotenv
+        python-multipart
+
+        # Data Ingestion
+        yfinance
+        pandas
+        selectolax
+
+        # RAG
+        sentence-transformers
+        faiss-cpu
+        numpy
+
+        # Language Model / Orchestration
+        langchain
+        langchain-google-genai
+        # langchain-openai
+
+        # Voice Agent (STT/TTS)
+        openai-whisper
+        TTS
+        # pydub # If not used by backend
