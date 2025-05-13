@@ -1,7 +1,7 @@
 # requirements.txt (for Streamlit Cloud)
 streamlit
 requests # For calling your backend agents
-audiorecorder # For audio input in Streamlit
+streamlit-audiorecorder # For audio input in Streamlit
 python-dotenv # For os.getenv (good practice, though Streamlit secrets are preferred)
 
 
