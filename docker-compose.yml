@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # Base service for Python applications (FastAPI agents + orchestrator)
+  # Individual services will extend this for their specific commands and ports.
+  app_base:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env # Load environment variables from .env file
+    volumes:
+      - .:/app # Mount current directory to /app for hot-reloading (dev)
+      # Persist FAISS index and temp audio (adjust paths if needed inside agents)
+      - ./faiss_index.bin:/app/faiss_index.bin # Ensure retriever agent saves/loads from /app/faiss_index.bin
+      - ./temp_audio:/app/temp_audio # Ensure voice agent uses /app/temp_audio
+    networks:
+      - finance_network
+    # Healthcheck can be added later if needed
+
+  orchestrator:
+    extends:
+      service: app_base
+    command: uvicorn orchestrator.app:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    depends_on:
+      - api_agent
+      - retriever_agent
+      - analysis_agent
+      - language_agent
+      # Voice agent can be started independently but orchestrator doesn't directly call it
+
+  api_agent:
+    extends:
+      service: app_base
+    command: uvicorn agents.api_agent.app:app --host 0.0.0.0 --port 8001 --reload
+    ports:
+      - "8001:8001"
+
+  retriever_agent:
+    extends:
+      service: app_base
+    command: uvicorn agents.retriever_agent.app:app --host 0.0.0.0 --port 8002 --reload
+    ports:
+      - "8002:8002"
+    # Consider healthcheck to ensure model & index are loaded before orchestrator fully relies on it
+
+  analysis_agent:
+    extends:
+      service: app_base
+    command: uvicorn agents.analysis_agent.app:app --host 0.0.0.0 --port 8003 --reload
+    ports:
+      - "8003:8003"
+
+  language_agent:
+    extends:
+      service: app_base
+    command: uvicorn agents.language_agent.app:app --host 0.0.0.0 --port 8004 --reload
+    ports:
+      - "8004:8004"
+    # Depends on GOOGLE_API_KEY from .env
+
+  voice_agent:
+    extends:
+      service: app_base
+    command: uvicorn agents.voice_agent.app:app --host 0.0.0.0 --port 8005 --reload
+    ports:
+      - "8005:8005"
+    # This service might take longer to start due to model loading (Whisper, Coqui TTS)
+    # Ensure ffmpeg is available in the base image or added to Dockerfile if not already.
+    # (Our Dockerfile uses python:3.10-slim, ffmpeg might need explicit installation)
+
+  streamlit_app:
+    build:
+      context: .
+      dockerfile: Dockerfile # Re-uses the same Dockerfile, but overrides command
+    command: streamlit run streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env # To get ORCHESTRATOR_URL and VOICE_AGENT_URL if they point to container names
+    environment:
+      # Override URLs to use service names within Docker network if not set in .env or for clarity
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - VOICE_AGENT_URL=http://voice_agent:8005
+    volumes:
+      - ./streamlit_app:/app/streamlit_app # Mount for hot-reloading Streamlit code
+      - ./.streamlit:/root/.streamlit # Mount Streamlit config if any
+    networks:
+      - finance_network
+    depends_on:
+      - orchestrator
+      - voice_agent # Streamlit app calls voice agent directly
+
+networks:
+  finance_network:
+    driver: bridge 
