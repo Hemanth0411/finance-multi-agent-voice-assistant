@@ -1,34 +1,43 @@
-# Core Dependencies
-fastapi
-uvicorn[standard] # Includes standard server dependencies like httptools, websockets
-httpx # For async requests between services
-pydantic
-python-dotenv # For loading .env files
-python-multipart # For FastAPI File Uploads / Form data
-
-# Data Ingestion
-yfinance
-pandas # Required by yfinance and for data manipulation
-selectolax # For HTML parsing in (currently basic) scraping_agent
-
-# RAG
-sentence-transformers # For embeddings
-faiss-cpu # Vector store (CPU version for broader compatibility)
-numpy # Required by sentence-transformers and for placeholder
-
-# Language Model / Orchestration
-langchain # Core LangChain library
-langchain-google-genai # Google Generative AI provider for LangChain
-# langchain-openai # Example provider (Install when needed)
-
-# Note: Agent-specific dependencies might be better in their own requirements.txt
-# but keeping them here for initial simplicity as per plan shortcuts.
-openai-whisper # For STT (Requires ffmpeg installed on system)
-# pydub # Useful for audio manipulation if needed
-
-# Frontend
+# requirements.txt (for Streamlit Cloud)
 streamlit
-requests # For calling FastAPI agents from Streamlit
-streamlit-audiorecorder # For audio input in Streamlit
-TTS # For text-to-speech
-# Note: Agent-specific dependencies might be better in their own requirements.txt
+requests # For calling your backend agents
+audiorecorder # For audio input in Streamlit
+python-dotenv # For os.getenv (good practice, though Streamlit secrets are preferred)
+
+
+
+
+# # Core Dependencies
+# fastapi
+# uvicorn[standard] # Includes standard server dependencies like httptools, websockets
+# httpx # For async requests between services
+# pydantic
+# python-dotenv # For loading .env files
+# python-multipart # For FastAPI File Uploads / Form data
+
+# # Data Ingestion
+# yfinance
+# pandas # Required by yfinance and for data manipulation
+# selectolax # For HTML parsing in (currently basic) scraping_agent
+
+# # RAG
+# sentence-transformers # For embeddings
+# faiss-cpu # Vector store (CPU version for broader compatibility)
+# numpy # Required by sentence-transformers and for placeholder
+
+# # Language Model / Orchestration
+# langchain # Core LangChain library
+# langchain-google-genai # Google Generative AI provider for LangChain
+# # langchain-openai # Example provider (Install when needed)
+
+# # Note: Agent-specific dependencies might be better in their own requirements.txt
+# # but keeping them here for initial simplicity as per plan shortcuts.
+# openai-whisper # For STT (Requires ffmpeg installed on system)
+# # pydub # Useful for audio manipulation if needed
+
+# # Frontend
+# streamlit
+# requests # For calling FastAPI agents from Streamlit
+# streamlit-audiorecorder # For audio input in Streamlit
+# TTS # For text-to-speech
+# # Note: Agent-specific dependencies might be better in their own requirements.txt
