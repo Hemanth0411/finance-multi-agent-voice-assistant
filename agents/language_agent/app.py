@@ -15,7 +15,6 @@ from orchestrator.prompts import LANGUAGE_AGENT_PROMPT
 # --- End LLM Imports ---
 
 load_dotenv()
-logger = logging.getLogger(__name__) # Added logger
 
 # Example: Load API key from environment variable (replace with your method)
 # os.environ["OPENAI_API_KEY"] = "your-api-key"
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__) # Added logger
 # Load API key from environment variable
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
-    logger.warning("GOOGLE_API_KEY environment variable not set. LLM calls may fail.") # Changed from print
+    print("Warning: GOOGLE_API_KEY environment variable not set. LLM calls will fail.")
     # Raise an error or handle appropriately if the key is critical for startup
     # raise ValueError("GOOGLE_API_KEY not set.")
 
@@ -44,10 +43,10 @@ app = FastAPI(
 async def load_llm_chain():
     global chain
     if not GOOGLE_API_KEY:
-         logger.error("LLM Chain cannot be loaded: GOOGLE_API_KEY is not set.") # Changed from print
+         print("LLM Chain cannot be loaded because GOOGLE_API_KEY is not set.")
          return
     
-    logger.info("Loading LLM chain...") # Changed from print
+    print("Loading LLM chain...")
     try:
         # Initialize the LLM
         llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL_NAME, google_api_key=GOOGLE_API_KEY)
@@ -64,10 +63,12 @@ async def load_llm_chain():
 
         # Create the LCEL chain
         chain = prompt_template | llm | output_parser
-        logger.info("LLM chain loaded successfully.") # Changed from print
+        print("LLM chain loaded successfully.")
 
     except Exception as e:
-        logger.error(f"Error loading LLM chain: {e}", exc_info=True) # Changed from print and traceback
+        print(f"Error loading LLM chain: {e}")
+        import traceback
+        traceback.print_exc()
         chain = None # Ensure chain is None if loading fails
 
 class SynthesisRequest(BaseModel):
@@ -149,24 +150,14 @@ async def synthesize_narrative(request: SynthesisRequest):
         market_str = format_market_data(request.market_data)
 
         # Invoke the LLM chain asynchronously
-<<<<<<< Updated upstream
         print("Invoking LLM chain...")
-=======
-        logger.info("Invoking LLM chain...") # Changed from print
-        llm_call_start_time = time.time()
->>>>>>> Stashed changes
         response = await chain.ainvoke({
             "query": request.query,
             "context": context_str,
             "analysis": analysis_str,
             "market_highlights": market_str
         })
-<<<<<<< Updated upstream
         print("LLM response received.")
-=======
-        log_duration("Language_Agent_LLM_Call", llm_call_start_time)
-        logger.info("LLM response received.") # Changed from print
->>>>>>> Stashed changes
 
         # *** Placeholder Response Generation ***
         # response = f"Synthesized response for query: '{request.query}'\n\n"
@@ -176,34 +167,23 @@ async def synthesize_narrative(request: SynthesisRequest):
         # *** End Placeholder ***
 
         if not response:
-<<<<<<< Updated upstream
              # Handle cases where the LLM might return an empty response
              print("Warning: LLM returned an empty response.")
-=======
-             logger.warning("LLM returned an empty response.") # Changed from print
-             log_duration("Language_Agent_Total_Request_EmptyLLMResponse", lang_agent_total_req_start_time)
->>>>>>> Stashed changes
              raise ValueError("LLM failed to generate a response.")
 
         return SynthesisResponse(narrative=response)
     except Exception as e:
-<<<<<<< Updated upstream
         print(f"Error during synthesis: {e}")
         import traceback
         traceback.print_exc()
-=======
-        logger.error(f"Error during synthesis: {e}", exc_info=True) # Changed from print and traceback
-        log_duration("Language_Agent_Total_Request_Error", lang_agent_total_req_start_time)
->>>>>>> Stashed changes
         # Check for specific API errors if using a service like OpenAI
         # if isinstance(e, openai.APIError): ...
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {e}")
 
-# Removed if __name__ == "__main__" block for deployment
-# if __name__ == "__main__":
-#     import uvicorn
-#     # Requires LangChain, langchain-google-genai
-#     # Set GOOGLE_API_KEY environment variable
-#     # logger.info("Running Language Agent Service. Ensure GOOGLE_API_KEY is set.") # Changed from print
-#     # logger.info(f"Access docs at http://localhost:8004/docs") # Changed from print
-#     uvicorn.run("agents.language_agent.app:app", host="0.0.0.0", port=8004, reload=True) 
+if __name__ == "__main__":
+    import uvicorn
+    # Requires LangChain, langchain-google-genai
+    # Set GOOGLE_API_KEY environment variable
+    print("Running Language Agent Service. Ensure GOOGLE_API_KEY is set.")
+    print(f"Access docs at http://localhost:8004/docs")
+    uvicorn.run("agents.language_agent.app:app", host="0.0.0.0", port=8004, reload=True) 

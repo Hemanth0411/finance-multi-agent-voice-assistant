@@ -43,12 +43,11 @@ async def read_stock_data(symbol: str):
 
     return data
 
-# Removed if __name__ == "__main__" block for deployment
-# if __name__ == "__main__":
-#     import uvicorn
-#     # Note: Running this directly might have issues with the sys.path modification depending on execution context.
-#     # It's better to run using uvicorn from the project root:
-#     # cd finance-assistant
-#     # uvicorn agents.api_agent.app:app --reload --port 8001
-#     print("Running API Agent Service. Access docs at http://localhost:8001/docs") # This print is fine for local uvicorn run, but removed with the block
-#     uvicorn.run(app, host="0.0.0.0", port=8001)
+if __name__ == "__main__":
+    import uvicorn
+    # Note: Running this directly might have issues with the sys.path modification depending on execution context.
+    # It's better to run using uvicorn from the project root:
+    # cd finance-assistant
+    # uvicorn agents.api_agent.app:app --reload --port 8001
+    print("Running API Agent Service. Access docs at http://localhost:8001/docs")
+    uvicorn.run(app, host="0.0.0.0", port=8001)

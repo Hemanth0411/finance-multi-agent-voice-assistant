@@ -81,32 +81,41 @@ async def scrape_multiple_filings(urls: List[HttpUrl], content_selectors: List[s
     results = await asyncio.gather(*tasks)
     return [doc for doc in results if doc is not None]
 
-# Removed if __name__ == "__main__" block for deployment
-# if __name__ == "__main__":
-#     # Example usage:
-#     async def main():
-#         urls = [
-#             HttpUrl("http://example.com"),
-#             HttpUrl("https://www.google.com/search?q=web+scraping+python"), # Example with query params
-#             HttpUrl("http://nonexistentwebsite.invalid") # Example of a URL that will likely fail
-#         ]
-# 
-#         logger.info("Starting scraping process for example URLs...")
-#         # For this example, let's assume a simple parsing function or use the generic one.
-#         # If specific parsers were defined (like parse_example_com), they could be used.
-#         # For simplicity, we'll call scrape_multiple_filings which uses generic parsing.
-#         # For demonstration, content_selectors might be customized per URL or a generic one used.
-#         documents = await scrape_multiple_filings(urls) # Uses default body selector
-# 
-#         if documents:
-#             logger.info(f"Scraped {len(documents)} documents successfully:")
-#             for i, doc in enumerate(documents):
-#                 logger.info(f"Document {i+1} from {doc.source}:")
-#                 # logger.info(f"  Title: {doc.metadata.get('title', 'N/A')}") # Title not extracted by default
-#                 logger.info(f"  Content preview (first 100 chars): {doc.content[:100]}...")
-#                 # if doc.metadata.get('links'): # Links not extracted by default
-#                 #     logger.info(f"  Found {len(doc.metadata['links'])} links.")
-#         else:
-#             logger.warning("No documents were scraped from the example URLs.")
-# 
-#     asyncio.run(main()) 
+if __name__ == "__main__":
+    async def main():
+        # Example usage:
+        # Replace with actual URLs of filings you want to scrape.
+        # These are placeholder URLs and will likely not work as intended for "filings".
+        example_urls = [
+            HttpUrl("https://www.sec.gov/ix?doc=/Archives/edgar/data/320193/000032019323000077/aapl-20230701.htm"), # Example Apple 10-Q
+            HttpUrl("https://www.example.com/another-filing") # Placeholder
+        ]
+        
+        # Define CSS selectors for the content you want to extract.
+        # This will HIGHLY depend on the structure of the target websites.
+        # For SEC filings, you'd need specific selectors for the main document body.
+        # For a generic body selector:
+        selectors = ["body"] 
+        # For a more specific (but still generic example) selector from an SEC filing text part:
+        # selectors = ["div.html-content", "div.text-block"] # This is illustrative
+
+        logger.info(f"Starting scraping process for {len(example_urls)} URLs...")
+        documents = await scrape_multiple_filings(example_urls, content_selectors=selectors)
+
+        if documents:
+            for doc in documents:
+                logger.info(f"Scraped from: {doc.source}")
+                logger.info(f"Extracted content snippet: {doc.content[:200]}...") # Print a snippet
+                logger.info(f"Metadata: {doc.metadata}")
+                logger.info("-" * 20)
+        else:
+            logger.info("No documents were successfully scraped.")
+
+    # Running the async main function
+    # In a real FastAPI app, you would call these functions within your route handlers.
+    # For direct execution:
+    # asyncio.run(main())
+    logger.info("Scraping agent module loaded. Run main() for an example.")
+    logger.info("NOTE: The example URLs in main() are for demonstration and might not be suitable for actual filings.")
+    logger.info("You will need to identify appropriate URLs and CSS selectors for your target financial documents.")
+    logger.info("Consider simpler alternatives like News APIs or RSS feeds if direct scraping is too complex for your use case.") 
